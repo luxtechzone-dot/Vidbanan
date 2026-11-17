@@ -89,20 +89,22 @@ def fmt(d): return d.strftime("%d-%m-%y %H:%M") if d else "-"
 @routes.get("/health")
 async def health(request): return web.Response(text="ok")
 
-LOGIN = (f'<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-         f'<style>{CSS}</style></head><body><div class="login card"><h1>🔐 Admin Login</h1>%s'
-         '<form method="post"><input type="password" name="password" placeholder="Password" style="width:100%%;margin-bottom:10px" autofocus>'
-         '<button class="b" style="width:100%%;padding:9px">Login</button></form></div></body></html>')
+def login_page(msg=""):
+    note = f'<p style="color:#e5484d">{e(msg)}</p>' if msg else ""
+    return (f'<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<style>{CSS}</style></head><body><div class="login card"><h1>🔐 Admin Login</h1>{note}'
+            '<form method="post"><input type="password" name="password" placeholder="Password" style="width:100%;margin-bottom:10px" autofocus>'
+            '<button class="b" style="width:100%;padding:9px">Login</button></form></div></body></html>')
 
 @routes.get("/login")
-async def login_get(request): return web.Response(text=LOGIN % "", content_type="text/html")
+async def login_get(request): return web.Response(text=login_page(), content_type="text/html")
 
 @routes.post("/login")
 async def login_post(request):
     ip = (request.headers.get("X-Forwarded-For") or request.remote or "").split(",")[0].strip()
     fails = [t for t in FAILS.get(ip, []) if time.time() - t < 600]
     if len(fails) >= 5:
-        return web.Response(text=LOGIN % '<p style="color:#e5484d">Bahut attempts. 10 min baad try karo.</p>', content_type="text/html", status=429)
+        return web.Response(text=login_page("Bahut attempts. 10 min baad try karo."), content_type="text/html", status=429)
     data = await request.post()
     pw = data.get("password", "")
     if config.ADMIN_PASSWORD and hmac.compare_digest(pw.encode(), config.ADMIN_PASSWORD.encode()):
@@ -111,7 +113,7 @@ async def login_post(request):
                         secure=request.headers.get("X-Forwarded-Proto") == "https")
         raise resp
     fails.append(time.time()); FAILS[ip] = fails
-    return web.Response(text=LOGIN % '<p style="color:#e5484d">Galat password</p>', content_type="text/html", status=401)
+    return web.Response(text=login_page("Galat password"), content_type="text/html", status=401)
 
 @routes.get("/logout")
 async def logout(request):
